@@ -9,12 +9,27 @@ console.log('Starting Gala Server...');
 
 // Ensure uploads directory exists
 const uploadsDir = path.resolve("public/uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('Could not create uploads directory (likely read-only environment):', err);
 }
 
-const db = new Database("gala.db");
-console.log('Database connected');
+const dbPath = process.env.NODE_ENV === 'production' ? '/tmp/gala.db' : 'gala.db';
+
+// Copy existing db to tmp if in production and it exists in root
+if (process.env.NODE_ENV === 'production' && fs.existsSync('gala.db') && !fs.existsSync(dbPath)) {
+  try {
+    fs.copyFileSync('gala.db', dbPath);
+  } catch (err) {
+    console.error('Failed to copy database to /tmp:', err);
+  }
+}
+
+const db = new Database(dbPath);
+console.log('Database connected at', dbPath);
 
 // Initialize database
 try {
@@ -88,54 +103,55 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+const app = express();
+
+app.use(express.json());
+app.use("/uploads", express.static(uploadsDir));
+
+// Health check
+app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+
+// API Routes
+app.get("/api/content", (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM content").all() as { key: string, value: string }[];
+    const content = rows.reduce((acc, row) => ({ ...acc, [row.key]: row.value }), {});
+    res.json(content);
+  } catch (err) {
+    console.error('Error in GET /api/content:', err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/api/content", (req, res) => {
+  const { key, value } = req.body;
+  db.prepare("INSERT OR REPLACE INTO content (key, value) VALUES (?, ?)").run(key, value);
+  res.json({ success: true });
+});
+
+app.post("/api/upload", upload.single("image"), (req: any, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url });
+});
+
+app.get("/api/rsvps", (req, res) => {
+  const rows = db.prepare("SELECT * FROM rsvps ORDER BY created_at DESC").all();
+  res.json(rows);
+});
+
+app.post("/api/rsvps", (req, res) => {
+  const { name, sector } = req.body;
+  if (!name || !sector) return res.status(400).json({ error: "Name and sector are required" });
+  
+  db.prepare("INSERT INTO rsvps (name, sector) VALUES (?, ?)")
+    .run(name, sector);
+  
+  res.json({ success: true });
+});
+
 async function startServer() {
-  const app = express();
   const PORT = 3000;
-
-  app.use(express.json());
-  app.use("/uploads", express.static(uploadsDir));
-
-  // Health check
-  app.get("/api/health", (req, res) => res.json({ status: "ok" }));
-
-  // API Routes
-  app.get("/api/content", (req, res) => {
-    try {
-      const rows = db.prepare("SELECT * FROM content").all() as { key: string, value: string }[];
-      const content = rows.reduce((acc, row) => ({ ...acc, [row.key]: row.value }), {});
-      res.json(content);
-    } catch (err) {
-      console.error('Error in GET /api/content:', err);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.post("/api/content", (req, res) => {
-    const { key, value } = req.body;
-    db.prepare("INSERT OR REPLACE INTO content (key, value) VALUES (?, ?)").run(key, value);
-    res.json({ success: true });
-  });
-
-  app.post("/api/upload", upload.single("image"), (req: any, res) => {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ url });
-  });
-
-  app.get("/api/rsvps", (req, res) => {
-    const rows = db.prepare("SELECT * FROM rsvps ORDER BY created_at DESC").all();
-    res.json(rows);
-  });
-
-  app.post("/api/rsvps", (req, res) => {
-    const { name, sector } = req.body;
-    if (!name || !sector) return res.status(400).json({ error: "Name and sector are required" });
-    
-    db.prepare("INSERT INTO rsvps (name, sector) VALUES (?, ?)")
-      .run(name, sector);
-    
-    res.json({ success: true });
-  });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
@@ -156,4 +172,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.NODE_ENV !== "production") {
+  startServer();
+}
+
+export default app;
