@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Montserrat:wght@100;200;300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Inter:wght@100;200;300;400;500;600;700&family=Cinzel:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-serif: var(--font-family-main, "Cormorant Garamond"), serif;
+  --font-sans: "Montserrat", sans-serif;
+  
+  --color-accent: var(--theme-color, #D4AF37);
+  --color-accent-dark: var(--theme-color-dark, #996515);
+  --color-gold: #D4AF37;
+  --color-dark-gold: #996515;
+  --color-ivory: #FFFFF0;
+  --color-rich-black: #0A0A0A;
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-color, #0A0A0A);
+    color: var(--text-color, #FFFFF0);
+    font-family: var(--font-family-main, "Cormorant Garamond"), serif;
+    @apply antialiased transition-colors duration-500;
+  }
+}
+
+.luxury-border {
+  border: 1px solid rgba(var(--theme-color-rgb, 212, 175, 55), 0.3);
+}
+
+.luxury-gradient {
+  background: linear-gradient(135deg, var(--bg-color, #0A0A0A) 0%, var(--card-bg-color, #1A1A1A) 100%);
+}
+
+.gold-text {
+  color: var(--theme-color, #D4AF37);
+}
+
+.gold-button {
+  background-color: var(--theme-color, #D4AF37);
+  @apply text-rich-black px-8 py-3 rounded-none uppercase tracking-[0.2em] font-semibold transition-all duration-300 active:scale-95;
+}
+
+.gold-button:hover {
+  background-color: var(--theme-color-dark, #996515);
+  @apply text-white;
+}
+
+.paper-texture {
+  background-color: #fdfdfd;
+  background-image: url("https://www.transparenttextures.com/patterns/paper-fibers.png");
+}
+
+.luxury-shadow {
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3), 0 0 20px rgba(212, 175, 55, 0.1);
+}
+
+.clip-path-envelope-flap {
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.clip-path-envelope-flap-bottom {
+  clip-path: polygon(0 100%, 100% 100%, 50% 0);
+}
+
+.clip-path-envelope-side-left {
+  clip-path: polygon(0 0, 0 100%, 50% 50%);
+}
+
+.clip-path-envelope-side-right {
+  clip-path: polygon(100% 0, 100% 100%, 50% 50%);
+}
+
