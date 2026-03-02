@@ -87,7 +87,7 @@ export default function App() {
       const res = await fetch('/api/content');
       if (!res.ok) {
         if (res.status === 500) {
-          throw new Error('Erro no servidor (500). Verifique se as variáveis SUPABASE_URL e SUPABASE_ANON_KEY foram configuradas corretamente na Vercel.');
+          throw new Error('ERRO 500 (V2): Verifique as variáveis SUPABASE_URL e SUPABASE_ANON_KEY na Vercel. Se já configurou, faça um REDEPLOY.');
         }
         throw new Error(`HTTP error! status: ${res.status}`);
       }

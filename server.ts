@@ -4,26 +4,21 @@ import fs from "fs";
 import multer from "multer";
 import { createClient } from "@supabase/supabase-js";
 
-console.log('Starting Gala Server with Supabase Support...');
-
 // Supabase Configuration
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_ANON_KEY || "";
+let supabase: any = null;
 
-if (!supabase) {
-  console.warn('SUPABASE_URL or SUPABASE_ANON_KEY not found. Running in local-only mode (data will not persist on Vercel).');
-}
-
-// Ensure uploads directory exists (only if possible)
-const uploadsDir = path.resolve("public/uploads");
 try {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
+  if (supabaseUrl && supabaseKey) {
+    supabase = createClient(supabaseUrl, supabaseKey);
   }
-} catch (err) {
-  console.warn('Could not create uploads directory (likely read-only environment):', err);
+} catch (e) {
+  console.error("Failed to initialize Supabase client:", e);
 }
+
+const app = express();
+app.use(express.json());
 
 // Seed initial content
 const seedContent = [
@@ -51,46 +46,69 @@ const seedContent = [
   ['schedule', '[]']
 ];
 
-// Multer configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage });
+const getFallbackContent = () => {
+  return seedContent.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+};
 
-const app = express();
-app.use(express.json());
-app.use("/uploads", express.static(uploadsDir));
-
-// Health check
-app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+const upload = multer({ storage: multer.memoryStorage() });
 
 // API Routes
+app.get("/api/health", (req, res) => res.json({ status: "ok", supabase: !!supabase }));
+
+app.post("/api/upload", upload.single("image"), async (req: any, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  
+  try {
+    if (!supabase) {
+      throw new Error("Supabase not configured");
+    }
+
+    const file = req.file;
+    const fileExt = path.extname(file.originalname);
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}${fileExt}`;
+    const filePath = `uploads/${fileName}`;
+
+    const { data, error } = await supabase.storage
+      .from('images')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true
+      });
+
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath);
+
+    res.json({ url: publicUrl });
+  } catch (err: any) {
+    console.error('Upload error:', err);
+    res.status(500).json({ error: `Erro no upload: ${err.message}. Certifique-se de que existe um bucket chamado 'images' no Supabase e que ele é público.` });
+  }
+});
+
+app.get("/api/debug", (req, res) => {
+  res.json({
+    env: process.env.NODE_ENV,
+    hasUrl: !!process.env.SUPABASE_URL,
+    hasKey: !!process.env.SUPABASE_ANON_KEY,
+    supabaseInit: !!supabase
+  });
+});
+
 app.get("/api/content", async (req, res) => {
   try {
     if (supabase) {
       const { data, error } = await supabase.from('content').select('*');
-      if (error) {
-        console.error('Supabase error in GET /api/content:', error);
-        throw error;
-      }
-      if (data && data.length > 0) {
-        const content = data.reduce((acc, row) => ({ ...acc, [row.key]: row.value }), {});
+      if (!error && data && data.length > 0) {
+        const content = data.reduce((acc: any, row: any) => ({ ...acc, [row.key]: row.value }), {});
         return res.json(content);
       }
     }
-    // Fallback to seed content if no data or no supabase
-    const fallback = seedContent.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
-    res.json(fallback);
+    res.json(getFallbackContent());
   } catch (err) {
-    console.error('Error in GET /api/content:', err);
-    const fallback = seedContent.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
-    res.json(fallback);
+    res.json(getFallbackContent());
   }
 });
 
@@ -98,90 +116,50 @@ app.post("/api/content", async (req, res) => {
   const { key, value } = req.body;
   try {
     if (supabase) {
-      const { error } = await supabase.from('content').upsert({ key, value });
-      if (error) throw error;
+      await supabase.from('content').upsert({ key, value });
     }
     res.json({ success: true });
   } catch (err) {
-    console.error('Error in POST /api/content:', err);
     res.status(500).json({ error: "Failed to update content" });
   }
-});
-
-app.post("/api/upload", upload.single("image"), (req: any, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-  const url = `/uploads/${req.file.filename}`;
-  res.json({ url });
 });
 
 app.get("/api/rsvps", async (req, res) => {
   try {
     if (supabase) {
       const { data, error } = await supabase.from('rsvps').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      return res.json(data || []);
+      if (!error) return res.json(data || []);
     }
     res.json([]);
   } catch (err) {
-    console.error('Error in GET /api/rsvps:', err);
     res.json([]);
   }
 });
 
 app.post("/api/rsvps", async (req, res) => {
   const { name, sector } = req.body;
-  if (!name || !sector) return res.status(400).json({ error: "Name and sector are required" });
-  
   try {
     if (supabase) {
-      const { error } = await supabase.from('rsvps').insert({ name, sector });
-      if (error) throw error;
+      await supabase.from('rsvps').insert({ name, sector });
     }
     res.json({ success: true });
   } catch (err) {
-    console.error('Error in POST /api/rsvps:', err);
     res.status(500).json({ error: "Failed to save RSVP" });
   }
 });
 
-// Static files for production
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.resolve("dist")));
+// Vite middleware for development
+if (process.env.NODE_ENV !== "production") {
+  const { createServer: createViteServer } = await import("vite");
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: "spa",
+  });
+  app.use(vite.middlewares);
+  
+  app.listen(3000, "0.0.0.0", () => {
+    console.log("Dev server running on http://localhost:3000");
+  });
 }
-
-async function startServer() {
-  const PORT = 3000;
-
-  if (process.env.NODE_ENV !== "production") {
-    // Dynamic import for Vite to avoid loading it in production
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.get("*", (req, res) => {
-      if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });
-      const indexPath = path.resolve("dist/index.html");
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        res.status(404).send('Build files not found. Please run npm run build.');
-      }
-    });
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
-}
-
-// Always call startServer to register routes, but it will only listen in dev
-startServer().catch(err => {
-  console.error('Failed to start server:', err);
-});
 
 export default app;
