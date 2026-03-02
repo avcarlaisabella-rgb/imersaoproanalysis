@@ -119,7 +119,8 @@ app.get("/api/content", (req, res) => {
     res.json(content);
   } catch (err) {
     console.error('Error in GET /api/content:', err);
-    res.status(500).json({ error: "Internal server error" });
+    const fallback = seedContent.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+    res.json(fallback);
   }
 });
 
@@ -143,17 +144,18 @@ app.get("/api/rsvps", (req, res) => {
 app.post("/api/rsvps", (req, res) => {
   const { name, sector } = req.body;
   if (!name || !sector) return res.status(400).json({ error: "Name and sector are required" });
-  
-  db.prepare("INSERT INTO rsvps (name, sector) VALUES (?, ?)")
-    .run(name, sector);
-  
+  db.prepare("INSERT INTO rsvps (name, sector) VALUES (?, ?)").run(name, sector);
   res.json({ success: true });
 });
+
+// Static files for production
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.resolve("dist")));
+}
 
 async function startServer() {
   const PORT = 3000;
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -161,8 +163,8 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve("dist")));
     app.get("*", (req, res) => {
+      if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });
       res.sendFile(path.resolve("dist/index.html"));
     });
   }
