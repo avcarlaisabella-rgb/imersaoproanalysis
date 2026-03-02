@@ -122,6 +122,23 @@ export default function App() {
     }
   };
 
+  const handleClearRsvps = async () => {
+    if (!confirm('Tem certeza que deseja zerar TODA a lista de confirmações? Esta ação não pode ser desfeita.')) return;
+    
+    try {
+      const res = await fetch('/api/rsvps/clear', { method: 'POST' });
+      if (res.ok) {
+        setAllRsvps([]);
+        alert('Lista de confirmações zerada com sucesso.');
+      } else {
+        alert('Erro ao zerar lista.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro de conexão.');
+    }
+  };
+
   const handleRsvpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -674,7 +691,13 @@ export default function App() {
             </div>
 
             {/* Admin Footer */}
-            <footer className="mt-20 py-12 border-t border-white/5 text-center">
+            <footer className="mt-20 py-12 border-t border-white/5 text-center flex flex-col items-center gap-6">
+              <button 
+                onClick={handleClearRsvps}
+                className="text-[10px] uppercase tracking-[0.3em] text-red-500/50 hover:text-red-500 transition-colors border border-red-500/20 px-6 py-3 rounded-full hover:bg-red-500/5"
+              >
+                Zerar Lista de Confirmações
+              </button>
               <p className="text-[10px] opacity-20 uppercase tracking-widest">© {new Date().getFullYear()} SistemasPro (RW). Todos os Direitos Reservados.</p>
             </footer>
           </motion.div>

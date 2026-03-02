@@ -77,7 +77,7 @@ app.post("/api/upload", upload.single("image"), async (req: any, res) => {
 
     if (error) {
       if (error.message.includes('row-level security')) {
-        throw new Error("Erro de Permissão (RLS). Você precisa adicionar uma 'Policy' no seu bucket 'images' no Supabase para permitir uploads públicos.");
+        throw new Error("Erro de Permissão (RLS). A maneira mais fácil de resolver é: No Supabase, vá em 'SQL Editor', clique em 'New Query' e cole este código: \n\n CREATE POLICY \"Permitir Tudo\" ON storage.objects FOR ALL USING (bucket_id = 'images'); \n\n Depois clique em 'Run'.");
       }
       throw error;
     }
@@ -150,6 +150,20 @@ app.post("/api/rsvps", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to save RSVP" });
+  }
+});
+
+app.post("/api/rsvps/clear", async (req, res) => {
+  try {
+    if (supabase) {
+      // Delete all rows from rsvps table
+      const { error } = await supabase.from('rsvps').delete().neq('id', 0);
+      if (error) throw error;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Clear RSVPs error:', err);
+    res.status(500).json({ error: "Failed to clear RSVPs" });
   }
 });
 
