@@ -4,5 +4,10 @@ export default function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
-  res.status(200).json({ message: "API funcionando" });
+  res.setHeader("Cache-Control", "no-store");
+
+  res.status(200).json({
+    message: "API funcionando",
+    time: new Date().toISOString()
+  });
 }
