@@ -655,6 +655,11 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {/* Admin Footer */}
+            <footer className="mt-20 py-12 border-t border-white/5 text-center">
+              <p className="text-[10px] opacity-20 uppercase tracking-widest">© {new Date().getFullYear()} SistemasPro (RW). Todos os Direitos Reservados.</p>
+            </footer>
           </motion.div>
         ) : (
           <motion.div 

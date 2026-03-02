@@ -1,11 +1,20 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
+import { createClient } from "@supabase/supabase-js";
 
-console.log('Starting Gala Server...');
+console.log('Starting Gala Server with Supabase Support...');
+
+// Supabase Configuration
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+
+if (!supabase) {
+  console.warn('SUPABASE_URL or SUPABASE_ANON_KEY not found. Running in local-only mode (data will not persist on Vercel).');
+}
 
 // Ensure uploads directory exists
 const uploadsDir = path.resolve("public/uploads");
@@ -17,41 +26,7 @@ try {
   console.warn('Could not create uploads directory (likely read-only environment):', err);
 }
 
-const dbPath = process.env.NODE_ENV === 'production' ? '/tmp/gala.db' : 'gala.db';
-
-// Copy existing db to tmp if in production and it exists in root
-if (process.env.NODE_ENV === 'production' && fs.existsSync('gala.db') && !fs.existsSync(dbPath)) {
-  try {
-    fs.copyFileSync('gala.db', dbPath);
-  } catch (err) {
-    console.error('Failed to copy database to /tmp:', err);
-  }
-}
-
-const db = new Database(dbPath);
-console.log('Database connected at', dbPath);
-
-// Initialize database
-try {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS rsvps (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      sector TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS content (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-  `);
-  console.log('Tables initialized');
-} catch (err) {
-  console.error('Failed to initialize tables:', err);
-}
-
-// Seed initial content if empty or missing keys
+// Seed initial content
 const seedContent = [
   ['event_title', 'O Grande Baile de Gala'],
   ['event_date', 'Sábado, 12 de Dezembro de 2026'],
@@ -77,20 +52,6 @@ const seedContent = [
   ['schedule', '[]']
 ];
 
-const insert = db.prepare("INSERT OR IGNORE INTO content (key, value) VALUES (?, ?)");
-seedContent.forEach(([key, value]) => insert.run(key, value));
-
-// Force update existing English defaults to Portuguese if they haven't been changed
-const updateDefaults = [
-  ['event_title', 'The Grand Winter Gala', 'O Grande Baile de Gala'],
-  ['event_date', 'Saturday, December 12th, 2026', 'Sábado, 12 de Dezembro de 2026'],
-  ['event_location', 'The Crystal Ballroom, New York', 'Salão de Cristal, São Paulo'],
-  ['event_description', 'Join us for an evening of unparalleled elegance and celebration. A night dedicated to excellence, featuring fine dining, live orchestral performances, and a silent auction.', 'Junte-se a nós para uma noite de elegância e celebração inigualáveis. Uma noite dedicada à excelência, com alta gastronomia, apresentações orquestrais ao vivo e um leilão silencioso.']
-];
-
-const updateStmt = db.prepare("UPDATE content SET value = ? WHERE key = ? AND value = ?");
-updateDefaults.forEach(([key, oldVal, newVal]) => updateStmt.run(newVal, key, oldVal));
-
 // Multer configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -104,7 +65,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 const app = express();
-
 app.use(express.json());
 app.use("/uploads", express.static(uploadsDir));
 
@@ -112,11 +72,19 @@ app.use("/uploads", express.static(uploadsDir));
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
 // API Routes
-app.get("/api/content", (req, res) => {
+app.get("/api/content", async (req, res) => {
   try {
-    const rows = db.prepare("SELECT * FROM content").all() as { key: string, value: string }[];
-    const content = rows.reduce((acc, row) => ({ ...acc, [row.key]: row.value }), {});
-    res.json(content);
+    if (supabase) {
+      const { data, error } = await supabase.from('content').select('*');
+      if (error) throw error;
+      if (data && data.length > 0) {
+        const content = data.reduce((acc, row) => ({ ...acc, [row.key]: row.value }), {});
+        return res.json(content);
+      }
+    }
+    // Fallback to seed content if no data or no supabase
+    const fallback = seedContent.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+    res.json(fallback);
   } catch (err) {
     console.error('Error in GET /api/content:', err);
     const fallback = seedContent.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
@@ -124,10 +92,18 @@ app.get("/api/content", (req, res) => {
   }
 });
 
-app.post("/api/content", (req, res) => {
+app.post("/api/content", async (req, res) => {
   const { key, value } = req.body;
-  db.prepare("INSERT OR REPLACE INTO content (key, value) VALUES (?, ?)").run(key, value);
-  res.json({ success: true });
+  try {
+    if (supabase) {
+      const { error } = await supabase.from('content').upsert({ key, value });
+      if (error) throw error;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error in POST /api/content:', err);
+    res.status(500).json({ error: "Failed to update content" });
+  }
 });
 
 app.post("/api/upload", upload.single("image"), (req: any, res) => {
@@ -136,16 +112,34 @@ app.post("/api/upload", upload.single("image"), (req: any, res) => {
   res.json({ url });
 });
 
-app.get("/api/rsvps", (req, res) => {
-  const rows = db.prepare("SELECT * FROM rsvps ORDER BY created_at DESC").all();
-  res.json(rows);
+app.get("/api/rsvps", async (req, res) => {
+  try {
+    if (supabase) {
+      const { data, error } = await supabase.from('rsvps').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return res.json(data || []);
+    }
+    res.json([]);
+  } catch (err) {
+    console.error('Error in GET /api/rsvps:', err);
+    res.json([]);
+  }
 });
 
-app.post("/api/rsvps", (req, res) => {
+app.post("/api/rsvps", async (req, res) => {
   const { name, sector } = req.body;
   if (!name || !sector) return res.status(400).json({ error: "Name and sector are required" });
-  db.prepare("INSERT INTO rsvps (name, sector) VALUES (?, ?)").run(name, sector);
-  res.json({ success: true });
+  
+  try {
+    if (supabase) {
+      const { error } = await supabase.from('rsvps').insert({ name, sector });
+      if (error) throw error;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error in POST /api/rsvps:', err);
+    res.status(500).json({ error: "Failed to save RSVP" });
+  }
 });
 
 // Static files for production
