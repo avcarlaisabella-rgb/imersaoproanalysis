@@ -240,7 +240,13 @@ export default function App() {
           className="font-serif text-xl md:text-2xl tracking-[0.3em] gold-text uppercase truncate max-w-[60%] hover:opacity-80 transition-opacity"
         >
           {content.logo_image ? (
-            <img src={content.logo_image} alt="Logo" className="h-8 md:h-12 w-auto object-contain" referrerPolicy="no-referrer" />
+            <img 
+              src={content.logo_image} 
+              alt="Logo" 
+              className="h-8 md:h-12 w-auto object-contain" 
+              referrerPolicy="no-referrer"
+              onError={(e) => (e.currentTarget.style.display = 'none')}
+            />
           ) : (
             'Prestígio'
           )}
@@ -279,7 +285,13 @@ export default function App() {
                 <div className="absolute inset-x-8 top-12 bottom-8 bg-white/5 flex flex-col items-center justify-center text-center p-6 border border-white/10">
                   <div className="w-12 h-12 mb-4 opacity-20">
                     {content.logo_image ? (
-                      <img src={content.logo_image} alt="Logo" className="w-full h-full object-contain grayscale" referrerPolicy="no-referrer" />
+                      <img 
+                        src={content.logo_image} 
+                        alt="Logo" 
+                        className="w-full h-full object-contain grayscale" 
+                        referrerPolicy="no-referrer"
+                        onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/logo/200')}
+                      />
                     ) : (
                       <Mail className="w-full h-full" />
                     )}
@@ -686,10 +698,11 @@ export default function App() {
                     <source media="(max-width: 768px)" srcSet={content.hero_image_mobile} />
                   )}
                   <img 
-                    src={content.hero_image} 
+                    src={content.hero_image || 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&q=80&w=1920'} 
                     alt="Imagem Principal" 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
+                    onError={(e) => (e.currentTarget.src = 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&q=80&w=1920')}
                   />
                 </picture>
               </motion.div>
@@ -787,18 +800,20 @@ export default function App() {
               <div className="relative">
                 <div className="aspect-[4/5] overflow-hidden luxury-border">
                   <img 
-                    src={content.gallery_image_1} 
+                    src={content.gallery_image_1 || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80&w=800'} 
                     alt="Detalhe do Evento" 
                     className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
                     referrerPolicy="no-referrer"
+                    onError={(e) => (e.currentTarget.src = 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80&w=800')}
                   />
                 </div>
                 <div className="absolute -bottom-10 -left-10 w-2/3 aspect-square overflow-hidden luxury-border hidden md:block">
                   <img 
-                    src={content.gallery_image_2} 
+                    src={content.gallery_image_2 || 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&q=80&w=800'} 
                     alt="Detalhe do Evento 2" 
                     className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
                     referrerPolicy="no-referrer"
+                    onError={(e) => (e.currentTarget.src = 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&q=80&w=800')}
                   />
                 </div>
               </div>

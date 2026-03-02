@@ -84,7 +84,7 @@ app.post("/api/upload", upload.single("image"), async (req: any, res) => {
     res.json({ url: publicUrl });
   } catch (err: any) {
     console.error('Upload error:', err);
-    res.status(500).json({ error: `Erro no upload: ${err.message}. Certifique-se de que existe um bucket chamado 'images' no Supabase e que ele é público.` });
+    res.status(500).json({ error: `Erro no upload: ${err.message}. Certifique-se de que você criou um bucket chamado exatamente 'images' (tudo minúsculo) no seu Supabase e que ele está marcado como 'Public'.` });
   }
 });
 
