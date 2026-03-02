@@ -154,16 +154,27 @@ app.post("/api/rsvps", async (req, res) => {
 });
 
 app.post("/api/rsvps/clear", async (req, res) => {
+  console.log('Received request to clear RSVPs');
   try {
     if (supabase) {
-      // Delete all rows from rsvps table
-      const { error } = await supabase.from('rsvps').delete().neq('id', 0);
-      if (error) throw error;
+      console.log('Attempting to delete all rows from rsvps table');
+      const { error } = await supabase.from('rsvps').delete().not('id', 'is', null);
+      if (error) {
+        console.error('Supabase delete error details:', error);
+        throw error;
+      }
+      console.log('RSVPs table cleared successfully in Supabase');
+    } else {
+      console.warn('Supabase client not initialized');
     }
     res.json({ success: true });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Clear RSVPs error:', err);
-    res.status(500).json({ error: "Failed to clear RSVPs" });
+    let errorMessage = err.message;
+    if (errorMessage.includes('row-level security')) {
+      errorMessage = "Erro de Permissão (RLS). No Supabase, vá em 'SQL Editor' e execute: \n\n CREATE POLICY \"Permitir Delete\" ON public.rsvps FOR DELETE USING (true);";
+    }
+    res.status(500).json({ error: errorMessage });
   }
 });
 

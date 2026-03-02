@@ -114,7 +114,8 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (loginForm.email === 'samantha@proanalysis.com' && loginForm.password === 'proanalysis') {
+    const allowedEmails = ['samantha@proanalysis.com', 'williamgestorbr@gmail.com'];
+    if (allowedEmails.includes(loginForm.email) && loginForm.password === 'proanalysis') {
       setIsLoggedIn(true);
       fetchRsvps();
     } else {
@@ -123,15 +124,18 @@ export default function App() {
   };
 
   const handleClearRsvps = async () => {
-    if (!confirm('Tem certeza que deseja zerar TODA a lista de confirmações? Esta ação não pode ser desfeita.')) return;
+    const confirmed = window.confirm('ATENÇÃO: Você tem certeza que deseja APAGAR TODA a lista de confirmações? Esta ação é irreversível e todos os nomes serão removidos permanentemente.');
+    if (!confirmed) return;
     
     try {
       const res = await fetch('/api/rsvps/clear', { method: 'POST' });
+      const data = await res.json();
       if (res.ok) {
         setAllRsvps([]);
+        await fetchRsvps();
         alert('Lista de confirmações zerada com sucesso.');
       } else {
-        alert('Erro ao zerar lista.');
+        alert(`Erro ao zerar lista: ${data.error || 'Erro desconhecido'}`);
       }
     } catch (err) {
       console.error(err);
@@ -396,9 +400,17 @@ export default function App() {
                 <h1 className="font-serif text-4xl md:text-5xl gold-text italic">Painel de Gestão</h1>
                 <p className="text-xs md:text-sm opacity-50 mt-2 uppercase tracking-widest">Controle de Conteúdo e Convidados</p>
               </div>
-              <button onClick={() => setIsLoggedIn(false)} className="flex items-center gap-2 text-[10px] md:text-xs uppercase tracking-widest opacity-50 hover:opacity-100">
-                <LogOut size={16} /> Sair
-              </button>
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={handleClearRsvps}
+                  className="text-[10px] uppercase tracking-widest text-red-500/50 hover:text-red-500 transition-colors border border-red-500/20 px-4 py-2 rounded-lg hover:bg-red-500/5"
+                >
+                  Zerar Lista
+                </button>
+                <button onClick={() => setIsLoggedIn(false)} className="flex items-center gap-2 text-[10px] md:text-xs uppercase tracking-widest opacity-50 hover:opacity-100">
+                  <LogOut size={16} /> Sair
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12">
@@ -1161,10 +1173,18 @@ export default function App() {
             </section>
 
             {/* Footer */}
-            <footer className="py-20 border-t border-white/5 text-center px-4">
+            <footer className="py-20 border-t border-white/5 text-center px-4 flex flex-col items-center gap-8">
+              {isLoggedIn && (
+                <button 
+                  onClick={handleClearRsvps}
+                  className="text-[10px] uppercase tracking-[0.3em] text-red-500/50 hover:text-red-500 transition-colors border border-red-500/20 px-6 py-3 rounded-full hover:bg-red-500/5 mb-4"
+                >
+                  Zerar Lista de Confirmações
+                </button>
+              )}
               <button 
                 onClick={() => setIsAdmin(true)}
-                className="font-serif text-2xl md:text-3xl tracking-[0.3em] gold-text uppercase mb-8 flex items-center justify-center mx-auto hover:opacity-80 transition-opacity"
+                className="font-serif text-2xl md:text-3xl tracking-[0.3em] gold-text uppercase flex items-center justify-center mx-auto hover:opacity-80 transition-opacity"
               >
                 {content.logo_image ? (
                   <img src={content.logo_image} alt="Logo" className="h-12 md:h-16 w-auto object-contain" referrerPolicy="no-referrer" />
@@ -1177,7 +1197,15 @@ export default function App() {
                 <span>Elegância</span>
                 <span>Celebração</span>
               </div>
-              <p className="mt-12 text-[10px] opacity-20 uppercase tracking-widest">© {new Date().getFullYear()} SistemasPro (RW). Todos os Direitos Reservados.</p>
+              <div className="mt-12 flex flex-col items-center gap-4">
+                <p className="text-[10px] opacity-20 uppercase tracking-widest">© {new Date().getFullYear()} SistemasPro (RW). Todos os Direitos Reservados.</p>
+                <button 
+                  onClick={() => setIsAdmin(true)}
+                  className="text-[9px] uppercase tracking-[0.4em] opacity-10 hover:opacity-40 transition-opacity"
+                >
+                  Acesso Restrito
+                </button>
+              </div>
             </footer>
           </motion.div>
         )}
