@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
@@ -16,7 +15,7 @@ if (!supabase) {
   console.warn('SUPABASE_URL or SUPABASE_ANON_KEY not found. Running in local-only mode (data will not persist on Vercel).');
 }
 
-// Ensure uploads directory exists
+// Ensure uploads directory exists (only if possible)
 const uploadsDir = path.resolve("public/uploads");
 try {
   if (!fs.existsSync(uploadsDir)) {
@@ -76,7 +75,10 @@ app.get("/api/content", async (req, res) => {
   try {
     if (supabase) {
       const { data, error } = await supabase.from('content').select('*');
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error in GET /api/content:', error);
+        throw error;
+      }
       if (data && data.length > 0) {
         const content = data.reduce((acc, row) => ({ ...acc, [row.key]: row.value }), {});
         return res.json(content);
@@ -151,6 +153,8 @@ async function startServer() {
   const PORT = 3000;
 
   if (process.env.NODE_ENV !== "production") {
+    // Dynamic import for Vite to avoid loading it in production
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -159,17 +163,25 @@ async function startServer() {
   } else {
     app.get("*", (req, res) => {
       if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });
-      res.sendFile(path.resolve("dist/index.html"));
+      const indexPath = path.resolve("dist/index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send('Build files not found. Please run npm run build.');
+      }
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  if (process.env.NODE_ENV !== "production") {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
-if (process.env.NODE_ENV !== "production") {
-  startServer();
-}
+// Always call startServer to register routes, but it will only listen in dev
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+});
 
 export default app;

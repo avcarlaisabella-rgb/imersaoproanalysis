@@ -85,7 +85,12 @@ export default function App() {
     try {
       setError(null);
       const res = await fetch('/api/content');
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      if (!res.ok) {
+        if (res.status === 500) {
+          throw new Error('Erro no servidor (500). Verifique se as variáveis SUPABASE_URL e SUPABASE_ANON_KEY foram configuradas corretamente na Vercel.');
+        }
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
       const data = await res.json();
       
       if (!data || Object.keys(data).length === 0) {
