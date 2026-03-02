@@ -75,7 +75,12 @@ app.post("/api/upload", upload.single("image"), async (req: any, res) => {
         upsert: true
       });
 
-    if (error) throw error;
+    if (error) {
+      if (error.message.includes('row-level security')) {
+        throw new Error("Erro de Permissão (RLS). Você precisa adicionar uma 'Policy' no seu bucket 'images' no Supabase para permitir uploads públicos.");
+      }
+      throw error;
+    }
 
     const { data: { publicUrl } } = supabase.storage
       .from('images')
