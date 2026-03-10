@@ -142,10 +142,10 @@ app.get("/api/rsvps", async (req, res) => {
 });
 
 app.post("/api/rsvps", async (req, res) => {
-  const { name, sector } = req.body;
+  const { name, sector, shirt_size } = req.body;
   try {
     if (supabase) {
-      await supabase.from('rsvps').insert({ name, sector });
+      await supabase.from('rsvps').insert({ name, sector, shirt_size });
     }
     res.json({ success: true });
   } catch (err) {

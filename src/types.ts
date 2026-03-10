@@ -34,5 +34,6 @@ export interface RSVP {
   id: number;
   name: string;
   sector: string;
+  shirt_size?: string;
   created_at: string;
 }

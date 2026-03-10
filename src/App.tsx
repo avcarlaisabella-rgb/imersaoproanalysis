@@ -10,6 +10,7 @@ import {
   LogOut, 
   CheckCircle2, 
   ChevronRight,
+  ChevronLeft,
   Image as ImageIcon,
   Type,
   Mail,
@@ -27,7 +28,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [rsvpForm, setRsvpForm] = useState({ name: '', sector: '' });
+  const [rsvpForm, setRsvpForm] = useState({ name: '', sector: '', shirt_size: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -35,6 +36,17 @@ export default function App() {
   const [editingContent, setEditingContent] = useState<Content | null>(null);
   const [isUploading, setIsUploading] = useState<string | null>(null);
   const [isEnvelopeOpen, setIsEnvelopeOpen] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [currentScheduleIndex, setCurrentScheduleIndex] = useState(0);
+
+  // Auto-hide notification
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // Check if we should show the envelope (only for public view, first time)
   useEffect(() => {
@@ -124,8 +136,8 @@ export default function App() {
   };
 
   const handleClearRsvps = async () => {
-    const confirmed = window.confirm('ATENÇÃO: Você tem certeza que deseja APAGAR TODA a lista de confirmações? Esta ação é irreversível e todos os nomes serão removidos permanentemente.');
-    if (!confirmed) return;
+    setShowClearConfirm(false);
+    setIsSubmitting(true);
     
     try {
       const res = await fetch('/api/rsvps/clear', { method: 'POST' });
@@ -133,13 +145,15 @@ export default function App() {
       if (res.ok) {
         setAllRsvps([]);
         await fetchRsvps();
-        alert('Lista de confirmações zerada com sucesso.');
+        setNotification({ message: 'Lista de confirmações zerada com sucesso.', type: 'success' });
       } else {
-        alert(`Erro ao zerar lista: ${data.error || 'Erro desconhecido'}`);
+        setNotification({ message: `Erro ao zerar lista: ${data.error || 'Erro desconhecido'}`, type: 'error' });
       }
     } catch (err) {
       console.error(err);
-      alert('Erro de conexão.');
+      setNotification({ message: 'Erro de conexão.', type: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -159,7 +173,7 @@ export default function App() {
           setIsSubmitted(true);
           setIsSending(false);
           setIsSubmitting(false);
-          setRsvpForm({ name: '', sector: '' });
+          setRsvpForm({ name: '', sector: '', shirt_size: '' });
         }, 4500); // Increased to allow full animation sequence + pause
       } else {
         setIsSubmitting(false);
@@ -197,12 +211,13 @@ export default function App() {
     const tableData = allRsvps.map(rsvp => [
       rsvp.name,
       rsvp.sector,
+      rsvp.shirt_size || '-',
       new Date(rsvp.created_at).toLocaleDateString('pt-BR')
     ]);
     
     autoTable(doc, {
       startY: 35,
-      head: [['Nome', 'Setor', 'Data']],
+      head: [['Nome', 'Setor', 'Camisa', 'Data']],
       body: tableData,
       headStyles: { fillColor: [212, 175, 55], textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: [250, 250, 250] },
@@ -250,7 +265,7 @@ export default function App() {
     );
   }
 
-  if (!content) return <div className="min-h-screen flex items-center justify-center bg-rich-black text-gold font-serif text-2xl italic animate-pulse">Carregando Elegância...</div>;
+  if (!content) return <div className="min-h-screen flex items-center justify-center bg-rich-black text-gold font-serif text-2xl italic animate-pulse">Carregando Imersão...</div>;
 
   return (
     <div className="min-h-screen selection:bg-gold selection:text-rich-black">
@@ -402,7 +417,7 @@ export default function App() {
               </div>
               <div className="flex items-center gap-4">
                 <button 
-                  onClick={handleClearRsvps}
+                  onClick={() => setShowClearConfirm(true)}
                   className="text-[10px] uppercase tracking-widest text-red-500/50 hover:text-red-500 transition-colors border border-red-500/20 px-4 py-2 rounded-lg hover:bg-red-500/5"
                 >
                   Zerar Lista
@@ -684,6 +699,7 @@ export default function App() {
                         <tr className="border-b border-white/10 text-[10px] uppercase tracking-widest opacity-50">
                           <th className="pb-4 font-medium">Nome</th>
                           <th className="pb-4 font-medium">Setor</th>
+                          <th className="pb-4 font-medium">Camisa</th>
                           <th className="pb-4 font-medium">Data</th>
                         </tr>
                       </thead>
@@ -692,6 +708,7 @@ export default function App() {
                           <tr key={rsvp.id} className="hover:bg-white/5 transition-colors">
                             <td className="py-4 font-medium">{rsvp.name}</td>
                             <td className="py-4 opacity-70">{rsvp.sector}</td>
+                            <td className="py-4 opacity-70">{rsvp.shirt_size || '-'}</td>
                             <td className="py-4 opacity-50 text-xs">{new Date(rsvp.created_at).toLocaleDateString()}</td>
                           </tr>
                         ))}
@@ -705,7 +722,7 @@ export default function App() {
             {/* Admin Footer */}
             <footer className="mt-20 py-12 border-t border-white/5 text-center flex flex-col items-center gap-6">
               <button 
-                onClick={handleClearRsvps}
+                onClick={() => setShowClearConfirm(true)}
                 className="text-[10px] uppercase tracking-[0.3em] text-red-500/50 hover:text-red-500 transition-colors border border-red-500/20 px-6 py-3 rounded-full hover:bg-red-500/5"
               >
                 Zerar Lista de Confirmações
@@ -859,34 +876,100 @@ export default function App() {
               try {
                 const scheduleData = JSON.parse(content.schedule || '[]');
                 if (scheduleData.length > 0) {
+                  const currentItem = scheduleData[currentScheduleIndex % scheduleData.length];
+                  
                   return (
-                    <section id="schedule" className="py-20 md:py-32 px-6 bg-white/[0.01]">
-                      <div className="max-w-xl mx-auto text-center">
-                        <div className="mb-16 md:mb-24">
+                    <section id="schedule" className="py-20 md:py-32 px-6 bg-white/[0.01] relative overflow-hidden">
+                      {/* Background decorative text */}
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[20vw] font-serif italic opacity-[0.02] pointer-events-none whitespace-nowrap select-none">
+                        Cronograma
+                      </div>
+
+                      <div className="max-w-4xl mx-auto">
+                        <div className="text-center mb-16 md:mb-24">
                           <h2 className="font-serif text-5xl md:text-7xl italic gold-text mb-6">Cronograma</h2>
                           <div className="w-32 h-[1px] bg-gold/20 mx-auto" />
                         </div>
 
-                        <div className="space-y-16">
-                          {scheduleData.map((item: ScheduleItem) => (
-                            <motion.div 
-                              initial={{ opacity: 0, y: 20 }}
-                              whileInView={{ opacity: 1, y: 0 }}
-                              viewport={{ once: true }}
-                              key={item.id} 
-                              className="flex flex-col items-center"
+                        <div className="relative px-4 md:px-12">
+                          <div className="flex items-center justify-between gap-4 md:gap-8">
+                            {/* Navigation Buttons */}
+                            <button 
+                              onClick={() => setCurrentScheduleIndex(prev => (prev - 1 + scheduleData.length) % scheduleData.length)}
+                              className="p-3 md:p-4 rounded-full border border-gold/20 gold-text hover:bg-gold/10 transition-all z-10 hidden sm:flex"
                             >
-                              <span className="font-serif text-4xl md:text-5xl italic gold-text mb-2">{item.time}</span>
-                              <h3 className="text-lg md:text-xl font-sans uppercase tracking-[0.3em] gold-text font-medium">
-                                {item.title}
-                              </h3>
-                              {item.description && (
-                                <p className="mt-4 text-sm md:text-base opacity-50 font-light leading-relaxed max-w-xs mx-auto">
-                                  {item.description}
-                                </p>
-                              )}
-                            </motion.div>
-                          ))}
+                              <ChevronLeft size={24} />
+                            </button>
+
+                            <div className="flex-1 min-h-[300px] flex items-center justify-center">
+                              <AnimatePresence mode="wait">
+                                <motion.div 
+                                  key={currentItem.id}
+                                  initial={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
+                                  animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+                                  exit={{ opacity: 0, x: -50, filter: 'blur(10px)' }}
+                                  transition={{ duration: 0.5, ease: "easeOut" }}
+                                  className="text-center space-y-6 md:space-y-8"
+                                >
+                                  <div className="relative inline-block">
+                                    <motion.span 
+                                      initial={{ scale: 0.8 }}
+                                      animate={{ scale: 1 }}
+                                      className="font-serif text-6xl md:text-8xl italic gold-text block"
+                                    >
+                                      {currentItem.time}
+                                    </motion.span>
+                                    <div className="absolute -bottom-2 left-0 right-0 h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent" />
+                                  </div>
+
+                                  <div className="space-y-4">
+                                    <h3 className="text-xl md:text-3xl font-sans uppercase tracking-[0.4em] gold-text font-medium leading-tight">
+                                      {currentItem.title}
+                                    </h3>
+                                    {currentItem.description && (
+                                      <p className="text-sm md:text-lg opacity-60 font-light leading-relaxed max-w-md mx-auto italic">
+                                        {currentItem.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              </AnimatePresence>
+                            </div>
+
+                            <button 
+                              onClick={() => setCurrentScheduleIndex(prev => (prev + 1) % scheduleData.length)}
+                              className="p-3 md:p-4 rounded-full border border-gold/20 gold-text hover:bg-gold/10 transition-all z-10 hidden sm:flex"
+                            >
+                              <ChevronRight size={24} />
+                            </button>
+                          </div>
+
+                          {/* Mobile Navigation */}
+                          <div className="flex sm:hidden justify-center gap-8 mt-12">
+                            <button 
+                              onClick={() => setCurrentScheduleIndex(prev => (prev - 1 + scheduleData.length) % scheduleData.length)}
+                              className="p-4 rounded-full border border-gold/20 gold-text active:scale-95 transition-all"
+                            >
+                              <ChevronLeft size={24} />
+                            </button>
+                            <button 
+                              onClick={() => setCurrentScheduleIndex(prev => (prev + 1) % scheduleData.length)}
+                              className="p-4 rounded-full border border-gold/20 gold-text active:scale-95 transition-all"
+                            >
+                              <ChevronRight size={24} />
+                            </button>
+                          </div>
+
+                          {/* Pagination Dots */}
+                          <div className="flex justify-center gap-3 mt-12 md:mt-16">
+                            {scheduleData.map((_: any, idx: number) => (
+                              <button
+                                key={idx}
+                                onClick={() => setCurrentScheduleIndex(idx)}
+                                className={`h-1.5 transition-all duration-500 rounded-full ${idx === currentScheduleIndex % scheduleData.length ? 'w-8 bg-gold' : 'w-2 bg-gold/20'}`}
+                              />
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </section>
@@ -1103,7 +1186,7 @@ export default function App() {
                           <div className="w-px h-16 bg-gradient-to-b from-transparent via-gold/40 to-transparent" />
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-20">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10 items-end">
                           <div className="space-y-4 group">
                             <label className="block text-[10px] uppercase tracking-[0.4em] opacity-40 ml-1 group-focus-within:opacity-100 transition-opacity duration-500">Nome Completo</label>
                             <div className="relative">
@@ -1130,6 +1213,28 @@ export default function App() {
                                 placeholder="Sua empresa ou setor"
                               />
                               <div className="absolute bottom-0 left-0 w-0 h-px bg-gold transition-all duration-700 group-focus-within:w-full" />
+                            </div>
+                          </div>
+                          <div className="space-y-4 group">
+                            <label className="block text-[10px] uppercase tracking-[0.4em] opacity-40 ml-1 group-focus-within:opacity-100 transition-opacity duration-500">Tamanho da Camisa</label>
+                            <div className="relative">
+                              <select 
+                                required
+                                value={rsvpForm.shirt_size}
+                                onChange={e => setRsvpForm({...rsvpForm, shirt_size: e.target.value})}
+                                className="w-full bg-transparent border-b border-gold/20 rounded-none px-1 py-4 focus:border-gold outline-none transition-all duration-700 text-xl font-serif italic appearance-none cursor-pointer"
+                              >
+                                <option value="" disabled className="bg-rich-black text-white/30">Selecione</option>
+                                <option value="P" className="bg-rich-black text-white">P</option>
+                                <option value="M" className="bg-rich-black text-white">M</option>
+                                <option value="G" className="bg-rich-black text-white">G</option>
+                                <option value="GG" className="bg-rich-black text-white">GG</option>
+                                <option value="XG" className="bg-rich-black text-white">XG</option>
+                              </select>
+                              <div className="absolute bottom-0 left-0 w-0 h-px bg-gold transition-all duration-700 group-focus-within:w-full" />
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+                                <ChevronRight size={16} className="rotate-90" />
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1174,14 +1279,6 @@ export default function App() {
 
             {/* Footer */}
             <footer className="py-20 border-t border-white/5 text-center px-4 flex flex-col items-center gap-8">
-              {isLoggedIn && (
-                <button 
-                  onClick={handleClearRsvps}
-                  className="text-[10px] uppercase tracking-[0.3em] text-red-500/50 hover:text-red-500 transition-colors border border-red-500/20 px-6 py-3 rounded-full hover:bg-red-500/5 mb-4"
-                >
-                  Zerar Lista de Confirmações
-                </button>
-              )}
               <button 
                 onClick={() => setIsAdmin(true)}
                 className="font-serif text-2xl md:text-3xl tracking-[0.3em] gold-text uppercase flex items-center justify-center mx-auto hover:opacity-80 transition-opacity"
@@ -1192,11 +1289,6 @@ export default function App() {
                   'Prestígio'
                 )}
               </button>
-              <div className="flex flex-wrap justify-center gap-6 md:gap-12 text-[10px] uppercase tracking-[0.2em] opacity-40">
-                <span>Exclusividade</span>
-                <span>Elegância</span>
-                <span>Celebração</span>
-              </div>
               <div className="mt-12 flex flex-col items-center gap-4">
                 <p className="text-[10px] opacity-20 uppercase tracking-widest">© {new Date().getFullYear()} SistemasPro (RW). Todos os Direitos Reservados.</p>
                 <button 
@@ -1207,6 +1299,55 @@ export default function App() {
                 </button>
               </div>
             </footer>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-8 right-8 z-[200] px-6 py-4 rounded-xl shadow-2xl border ${
+              notification.type === 'success' ? 'bg-emerald-900/90 border-emerald-500/50 text-emerald-100' : 'bg-red-900/90 border-red-500/50 text-red-100'
+            }`}
+          >
+            <p className="text-sm font-medium">{notification.message}</p>
+          </motion.div>
+        )}
+
+        {showClearConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="w-full max-w-md luxury-border luxury-gradient p-8 text-center"
+            >
+              <h3 className="font-serif text-2xl gold-text mb-4 italic">Confirmar Exclusão</h3>
+              <p className="text-sm opacity-70 mb-8 leading-relaxed">
+                ATENÇÃO: Você tem certeza que deseja APAGAR TODA a lista de confirmações? 
+                Esta ação é irreversível e todos os nomes serão removidos permanentemente.
+              </p>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 px-6 py-3 border border-white/10 rounded-xl text-[10px] uppercase tracking-widest hover:bg-white/5 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleClearRsvps}
+                  className="flex-1 px-6 py-3 bg-red-500/20 border border-red-500/50 rounded-xl text-[10px] uppercase tracking-widest text-red-500 hover:bg-red-500/30 transition-colors"
+                >
+                  Zerar Agora
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
