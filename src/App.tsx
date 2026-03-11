@@ -1229,7 +1229,7 @@ export default function App() {
                                 <option value="M" className="bg-rich-black text-white">M</option>
                                 <option value="G" className="bg-rich-black text-white">G</option>
                                 <option value="GG" className="bg-rich-black text-white">GG</option>
-                                <option value="XG" className="bg-rich-black text-white">XG</option>
+                                <option value="XGG" className="bg-rich-black text-white">XGG</option>
                               </select>
                               <div className="absolute bottom-0 left-0 w-0 h-px bg-gold transition-all duration-700 group-focus-within:w-full" />
                               <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
