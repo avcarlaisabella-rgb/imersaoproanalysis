@@ -228,6 +228,12 @@ export default function App() {
   };
 
   const handleImageUpload = async (key: keyof Content, file: File) => {
+    // Client-side size check (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert("O arquivo é muito grande. Por favor, escolha uma imagem de até 10MB.");
+      return;
+    }
+
     setIsUploading(key);
     const formData = new FormData();
     formData.append('image', file);
@@ -239,8 +245,17 @@ export default function App() {
       });
       
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || `Upload failed with status ${res.status}`);
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || `Upload failed with status ${res.status}`);
+        } else {
+          const text = await res.text();
+          if (text.includes("Payload Too Large") || text.includes("Request Entity Too Large") || res.status === 413) {
+            throw new Error("O arquivo é muito grande para o servidor. Tente uma imagem menor.");
+          }
+          throw new Error(`Erro no servidor (${res.status})`);
+        }
       }
 
       const data = await res.json();
