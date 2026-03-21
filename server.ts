@@ -135,25 +135,44 @@ app.post("/api/content", async (req, res) => {
 
 app.get("/api/rsvps", async (req, res) => {
   try {
-    if (supabase) {
-      const { data, error } = await supabase.from('rsvps').select('*').order('created_at', { ascending: false });
-      if (!error) return res.json(data || []);
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase not initialized. Check environment variables." });
     }
-    res.json([]);
-  } catch (err) {
-    res.json([]);
+    const { data, error } = await supabase.from('rsvps').select('*').order('created_at', { ascending: false });
+    if (error) {
+      console.error('Supabase fetch error:', error);
+      let msg = error.message;
+      if (msg.includes('row-level security')) {
+        msg = "ERRO DE PERMISSÃO (RLS): O banco está bloqueando a leitura. \n\nPara resolver, vá no Supabase -> SQL Editor -> New Query e execute:\n\nCREATE POLICY \"Permitir Leitura\" ON public.rsvps FOR SELECT USING (true);";
+      }
+      return res.status(500).json({ error: msg });
+    }
+    res.json(data || []);
+  } catch (err: any) {
+    console.error('Fetch RSVPs error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
 app.post("/api/rsvps", async (req, res) => {
   const { name, sector, shirt_size } = req.body;
   try {
-    if (supabase) {
-      await supabase.from('rsvps').insert({ name, sector, shirt_size });
+    if (!supabase) {
+      return res.status(500).json({ error: "Supabase not initialized. Check environment variables." });
+    }
+    const { error } = await supabase.from('rsvps').insert({ name, sector, shirt_size });
+    if (error) {
+      console.error('Supabase insert error:', error);
+      let msg = error.message;
+      if (msg.includes('row-level security')) {
+        msg = "ERRO DE PERMISSÃO (RLS): O banco está bloqueando novos cadastros. \n\nPara resolver, vá no Supabase -> SQL Editor -> New Query e execute:\n\nCREATE POLICY \"Permitir Inserção\" ON public.rsvps FOR INSERT WITH CHECK (true);";
+      }
+      return res.status(500).json({ error: msg });
     }
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to save RSVP" });
+  } catch (err: any) {
+    console.error('Save RSVP error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

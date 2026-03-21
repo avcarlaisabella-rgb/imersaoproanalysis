@@ -16,7 +16,9 @@ import {
   Mail,
   Clock,
   Layout,
-  Download
+  Download,
+  RefreshCw,
+  ShieldCheck
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -39,6 +41,38 @@ export default function App() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [currentScheduleIndex, setCurrentScheduleIndex] = useState(0);
+
+  const [supabaseStatus, setSupabaseStatus] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => setSupabaseStatus(data.supabase))
+      .catch(() => setSupabaseStatus(false));
+  }, []);
+
+  const [isTesting, setIsTesting] = useState(false);
+
+  const testDatabase = async () => {
+    setIsTesting(true);
+    try {
+      const res = await fetch('/api/rsvps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'TESTE DE CONEXÃO', sector: 'SISTEMA', shirt_size: 'N/A' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro desconhecido');
+      
+      setNotification({ message: 'Teste bem-sucedido! O banco está gravando e lendo corretamente.', type: 'success' });
+      fetchRsvps();
+    } catch (err: any) {
+      console.error('Database test failed:', err);
+      alert(`Falha no teste: ${err.message}`);
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   // Auto-hide notification
   useEffect(() => {
@@ -119,17 +153,30 @@ export default function App() {
   };
 
   const fetchRsvps = async () => {
-    const res = await fetch('/api/rsvps');
-    const data = await res.json();
-    setAllRsvps(data);
+    try {
+      const res = await fetch('/api/rsvps');
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao carregar lista');
+      }
+      setAllRsvps(data);
+    } catch (err: any) {
+      console.error('Failed to fetch RSVPs:', err);
+      setNotification({ message: `Erro ao carregar lista: ${err.message}`, type: 'error' });
+    }
   };
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchRsvps();
+    }
+  }, [isLoggedIn]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const allowedEmails = ['samantha@proanalysis.com', 'williamgestorbr@gmail.com'];
     if (allowedEmails.includes(loginForm.email) && loginForm.password === 'proanalysis') {
       setIsLoggedIn(true);
-      fetchRsvps();
     } else {
       alert('Credenciais inválidas');
     }
@@ -428,7 +475,31 @@ export default function App() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-white/10 pb-8 gap-6">
               <div>
                 <h1 className="font-serif text-4xl md:text-5xl gold-text italic">Painel de Gestão</h1>
-                <p className="text-xs md:text-sm opacity-50 mt-2 uppercase tracking-widest">Controle de Conteúdo e Convidados</p>
+                <div className="flex items-center gap-3 mt-2">
+                  <p className="text-xs md:text-sm opacity-50 uppercase tracking-widest">Controle de Conteúdo e Convidados</p>
+                  <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] uppercase tracking-tighter ${
+                    supabaseStatus === true ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5' : 
+                    supabaseStatus === false ? 'border-red-500/30 text-red-500 bg-red-500/5' : 
+                    'border-white/10 text-white/30 bg-white/5'
+                  }`}>
+                    <div className={`w-1 h-1 rounded-full ${
+                      supabaseStatus === true ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 
+                      supabaseStatus === false ? 'bg-red-500' : 
+                      'bg-white/30'
+                    }`} />
+                    {supabaseStatus === true ? 'Banco Conectado' : supabaseStatus === false ? 'Banco Desconectado' : 'Verificando...'}
+                  </div>
+                  {supabaseStatus === true && (
+                    <button 
+                      onClick={testDatabase}
+                      disabled={isTesting}
+                      className="text-[9px] uppercase tracking-widest border border-gold/20 px-2 py-0.5 rounded-full hover:bg-gold/10 transition-all opacity-60 hover:opacity-100 flex items-center gap-1"
+                    >
+                      {isTesting ? <RefreshCw size={10} className="animate-spin" /> : <ShieldCheck size={10} />}
+                      Testar Banco
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <button 
@@ -696,17 +767,43 @@ export default function App() {
 
               {/* Lista de Presença */}
               <div className="md:col-span-2 lg:col-span-2">
+                {!supabaseStatus && (
+                  <div className="mb-8 p-6 border border-gold/30 bg-gold/5 rounded-2xl">
+                    <h4 className="font-serif text-lg gold-text mb-4 italic">Guia de Reconexão Supabase</h4>
+                    <ol className="text-xs space-y-3 opacity-80 list-decimal pl-4">
+                      <li>Vá em <strong>Settings</strong> (engrenagem no topo) e clique em <strong>Secrets</strong>.</li>
+                      <li>Adicione <strong>SUPABASE_URL</strong> com o link do seu projeto.</li>
+                      <li>Adicione <strong>SUPABASE_ANON_KEY</strong> com a chave anon do seu projeto.</li>
+                      <li>No seu painel do Supabase, vá em <strong>SQL Editor</strong> e execute o comando para criar a tabela <strong>rsvps</strong>.</li>
+                    </ol>
+                    <button 
+                      onClick={() => window.location.reload()} 
+                      className="mt-6 text-[10px] uppercase tracking-widest border border-gold/40 px-4 py-2 rounded-lg hover:bg-gold/10 transition-all"
+                    >
+                      Recarregar após configurar
+                    </button>
+                  </div>
+                )}
                 <div className="p-6 md:p-8 luxury-border luxury-gradient h-full">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-serif text-xl gold-text flex items-center gap-2">
                       <Users size={18} /> Lista de Presença ({allRsvps.length})
                     </h3>
-                    <button 
-                      onClick={exportToPDF}
-                      className="flex items-center gap-2 text-[10px] uppercase tracking-widest gold-text border border-gold/20 px-4 py-2 rounded-lg hover:bg-gold/10 transition-all"
-                    >
-                      <Download size={14} /> Exportar PDF
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={fetchRsvps}
+                        className="flex items-center gap-2 text-[10px] uppercase tracking-widest gold-text border border-gold/20 px-4 py-2 rounded-lg hover:bg-gold/10 transition-all"
+                        title="Atualizar Lista"
+                      >
+                        <RefreshCw size={14} className={isSubmitting ? 'animate-spin' : ''} /> <span className="hidden sm:inline">Atualizar</span>
+                      </button>
+                      <button 
+                        onClick={exportToPDF}
+                        className="flex items-center gap-2 text-[10px] uppercase tracking-widest gold-text border border-gold/20 px-4 py-2 rounded-lg hover:bg-gold/10 transition-all"
+                      >
+                        <Download size={14} /> <span className="hidden sm:inline">Exportar PDF</span>
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto -mx-6 px-6 md:mx-0 md:px-0">
                     <table className="w-full text-left text-sm min-w-[500px]">
